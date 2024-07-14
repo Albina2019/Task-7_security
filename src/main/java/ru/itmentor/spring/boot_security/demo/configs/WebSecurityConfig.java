@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -18,22 +19,18 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.filter.CharacterEncodingFilter;
+import ru.itmentor.spring.boot_security.demo.service.CustomUserDetailsService;
 
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
-    private final UserDetailsService userDetailsService; // сервис, с помощью которого тащим пользователя
-    private final SuccessUserHandler successUserHandler; // класс, в котором описана логика перенаправления пользователей по ролям
+    private final CustomUserDetailsService customUserDetailsService; // сервис, с помощью которого тащим пользователя
 
-    public WebSecurityConfig(UserDetailsService userDetailsService, SuccessUserHandler successUserHandler) {
-        this.userDetailsService = userDetailsService;
-        this.successUserHandler = successUserHandler;
+    public WebSecurityConfig(CustomUserDetailsService customUserDetailsService) {
+        this.customUserDetailsService = customUserDetailsService;
     }
 
-    @Autowired
-    public void configureGlobalSecurity(AuthenticationManagerBuilder auth) throws Exception {
-        auth.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder()); // конфигурация для прохождения аутентификации
-    }
+
     @Override
     protected void configure(HttpSecurity http) throws Exception {
 
@@ -41,19 +38,12 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         // Есть securityFilterChain (стоит вторым. после metrica filter) , и мы можем добавить наш фильтр внутри него.
         // Первый фильтр (внутри цепочки безопасности), который читает свойства,
         // - это CsrfFilter, поэтому мы помещаем перед ним CharacterEncodingFilter.
-        CharacterEncodingFilter filter = new CharacterEncodingFilter();
-        filter.setEncoding("UTF-8");
-        filter.setForceEncoding(true);
-        http.addFilterBefore(filter, CsrfFilter.class);
 
         http
                 .formLogin()
                 // указываем страницу с формой логина
                 .loginPage("/login")
-                .successHandler(successUserHandler) //указываем логику обработки при логине
                 .loginProcessingUrl("/login") // указываем action с формы логина
-                .usernameParameter("username")// Указываем параметры логина и пароля с формы логина
-                .passwordParameter("password")
                 .permitAll();// даем доступ к форме логина всем
 
         http.logout()
@@ -67,11 +57,9 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .authorizeRequests()// делаем страницу регистрации недоступной для авторизированных пользователей
                 .antMatchers("/").permitAll() // доступность всем
                 //страница аутентификации доступна всем
-                .antMatchers("/login").anonymous()
-                // защищенные URL
                 .antMatchers("/", "/login", "menuPage").permitAll()
-                .antMatchers("/user","/login").hasAnyRole("USER", "ADMIN")
-                .antMatchers("/editUser", "/addUser").hasRole("ADMIN")
+                .antMatchers("/api/user/profile", "/profile").hasAnyRole("USER", "ADMIN")
+                .antMatchers("/editUser", "/addUser", "/allUsers", "/api/admin/**", "/new", "/save").hasRole("ADMIN")
                 .anyRequest().hasRole("ADMIN")
                 .and().formLogin().loginPage("/login").permitAll();
 
@@ -81,7 +69,15 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     // Необходимо для шифрования паролей. В данном примере не используется, отключен
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return NoOpPasswordEncoder.getInstance();
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(customUserDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder());
+        return authProvider;
     }
 }
 

@@ -1,65 +1,94 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity5">
 <head>
     <meta charset="UTF-8">
-    <title>Добавить пользователя</title>
+    <title>Create User</title>
 </head>
 <body>
-<h2>Добавить пользователя</h2>
-<div>
-    <th:block th:include="menuPage">Menu</th:block>
-</div>
-<div>
-    <form th:action="@{add}"
-          th:object="${user}"
-          method="post">
-        <fieldset>
-            <legend>Данные пользователя</legend>
-            <p>
-                <label th:for="username">Логин
-                    <input type="text"
-                           name="username"
-                           th:id="username">
-                </label>
-                <br/>
-                <label th:for="password">Пароль
-                    <input type="text"
-                           name="password"
-                           th:id="password">
-                </label>
-                <br/>
-                <label th:for="email">Почтовый ящик
-                    <input type="text"
-                           name="email"
-                           th:id="email">
-                </label>
-                <br/>
-                <label th:for="firsName">Имя
-                    <input type="text"
-                           name="firstName"
-                           th:id="firstName">
-                </label>
-                <br/>
-                <label th:for="lastName">Фамилия
-                    <input type="text"
-                           name="lastName"
-                           th:id="lastName">
-                </label>
-                <br/>
-                <label>
-                    <input type="checkbox"
-                           name="roleAdmin"
-                           th:value="ROLE_ADMIN"
-                           th:text="Администратор">
-                </label>
-            </p>
-        </fieldset>
-        <button type="submit">Сохранить пользователя</button>
-    </form>
-    <br/>
-    <form th:action="@{/admin/all}">
-        <button type="submit">Назад к списку пользователей</button>
+<h1>Create User</h1>
+<a href="/allUsers" type="submit">Вернуться</a>
+<div sec:authorize="hasRole('ROLE_ADMIN')">
+    <form id="create-user-form">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required>
+
+        <label for="lastName">Last Name:</label>
+        <input type="text" id="lastName" name="lastName" required>
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required>
+
+        <label for="age">Age:</label>
+        <input type="number" id="age" name="age" required>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+
+        <div class="mb-3">
+            <label class="form-label">Roles</label>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="user" id="roleUser" name="roles">
+                <label class="form-check-label" for="roleUser">User</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="admin" id="roleAdmin" name="roles">
+                <label class="form-check-label" for="roleAdmin">Admin</label>
+            </div>
+        </div>
+
+        <button type="submit">Create User</button>
     </form>
 </div>
+
+<div sec:authorize="!hasRole('ROLE_ADMIN')">
+    <p>You do not have permission to create users.</p>
+</div>
+
+<script>
+        // Обработчик формы для создания пользователя
+        document.getElementById('create-user-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        const formData = {
+        name: document.getElementById('name').value,
+        lastName: document.getElementById('lastName').value,
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+        roles: new Set()
+    };
+
+        // Получение выбранных ролей
+        if (document.getElementById('roleUser').checked) {
+        formData.roles.add('user');
+    }
+        if (document.getElementById('roleAdmin').checked) {
+        formData.roles.add('admin');
+    }
+
+        fetch('/api/admin/save', {
+        method: 'POST',
+        headers: {
+        'Content-Type': 'application/json'
+    },
+        body: JSON.stringify({
+        ...formData,
+        roles: Array.from(formData.roles) // Преобразование Set в Array для передачи JSON
+    })
+    })
+        .then(response => {
+        if (!response.ok) {
+        throw new Error('Network response was not ok');
+    }
+        return response.text();
+    })
+        .then(data => {
+        document.getElementById('responseMessage').textContent = 'User created successfully';
+    })
+        .catch(error => {
+        document.getElementById('responseMessage').textContent = 'Error creating user';
+        console.error('There was a problem with the fetch operation:', error);
+    });
+    });
+</script>
 </body>
 </html>

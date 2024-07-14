@@ -1,14 +1,6 @@
 <div xmlns:th="http://www.thymeleaf.org">
-    <form th:if="${#request.userPrincipal == null}" th:action="@{/login}">
-        <button type="submit">Войти</button>
-    </form>
     <form th:if="${#request.userPrincipal != null}" th:action="@{/logout}">
         <button type="submit">Выйти</button>
     </form>
-    <form th:action="@{/admin/all}">
-        <button type="submit">Администратор</button>
-    </form>
-    <form th:action="@{/user/lk}">
-        <button type="submit">Личный кабинет</button>
-    </form>
+        <a href="/profile" type="submit">Войти</a>
 </div>

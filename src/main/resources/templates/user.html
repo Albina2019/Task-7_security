@@ -1,58 +1,269 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" xmlns:th="http://www.thymeleaf.org/" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
     <meta charset="UTF-8">
-    <title>Все пользователи</title>
+    <title>Users List</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
 </head>
 <body>
-<h2>Все пользователи</h2>
-<div>
-    <th:block th:include="menuPage">Menu</th:block>
-</div>
-<div>
-    <table>
+<form th:if="${#request.userPrincipal != null}" th:action="@{/logout}">
+    <button type="submit">Выйти</button>
+</form>
+<a href="/new" type="submit">Добавить</a>
+<h1>Users List</h1>
+<div class="container">
+    <h1 class="text-center">Read users</h1>
+    <a href="/">Back</a>
+    <form id="getUserForm" class="mb-4">
+
+    </form>
+    <table class="table table-bordered table-hover">
         <thead>
         <tr>
-            <th>Id</th>
-            <th>Login</th>
-            <th>Password</th>
-            <th>Почтовый ящик</th>
+            <th>ID</th>
             <th>Имя</th>
             <th>Фамилия</th>
-            <th>Роль</th>
+            <th>Почта</th>
+            <th>Роли</th>
+            <th>Изменить</th>
+            <th>Удалить</th>
         </tr>
         </thead>
-        <tbody>
-        <tr th:each="user : ${users}">
-            <td th:text="${user.getId()}">Id</td>
-            <td th:text="${user.getUsername()}">Login</td>
-            <td th:text="${user.getPassword()}">Password</td>
-            <td th:text="${user.getEmail()}">Почтовый ящик</td>
-            <td th:text="${user.getFirstName()}">Имя</td>
-            <td th:text="${user.getLastName()}">Фамилия</td>
-            <td>
-                <div th:each="role: ${user.getRoles()}">
-                    <span th:if="(${role.getName()} == 'ROLE_ADMIN')" th:utext="Администратор"></span>
-                    <span th:if="(${role.getName()} == 'ROLE_USER')" th:utext="Пользователь"></span>
-                </div>
-            </td>
-            <td>
-                <form th:action="@{edit/{id}(id=${user.getId()})}" th:object="${user}">
-                    <button type="submit">Изменить</button>
-                </form>
-            </td>
-            <td>
-                <form th:action="@{delete/{id}(id=${user.getId()})}" th:object="${user}">
-                    <input type="hidden" name="id" th:value="${user.getId()}">
-                    <button type="submit">Удалить</button>
-                </form>
-            </td>
-        </tr>
+        <tbody id="userTableBody">
         </tbody>
     </table>
-    <form th:action="@{add}">
-        <button type="submit">Добавить нового пользователя</button>
-    </form>
+    <div id="responseMessage"></div>
 </div>
+<!-- Модальное окно для обновления пользователя -->
+<div class="modal fade" id="updateUserModal" tabindex="-1" aria-labelledby="updateUserModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="updateUserModalLabel">Update User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="updateUserForm">
+                    <div class="mb-3">
+                        <label for="updateUserId" class="form-label">ID</label>
+                        <input type="number" class="form-control" id="updateUserId" name="id"
+                               readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="updateUserName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="updateUserName" name="name"
+                               required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="updateUserLastName" class="form-label">Last Name</label>
+                        <input type="text" class="form-control" id="updateUserLastName"
+                               name="lastName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="updateUserEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="updateUserEmail" name="email"
+                               required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="updateUserPassword" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="updateUserPassword"
+                               name="password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Roles</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="user"
+                                   id="roleUser" name="roles">
+                            <label class="form-check-label" for="roleUser">
+                                User
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="admin"
+                                   id="roleAdmin" name="roles">
+                            <label class="form-check-label" for="roleAdmin">
+                                Admin
+                            </label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    // Функция для отображения пользователей в таблице
+    function displayUsers(users) {
+        const userTableBody = document.getElementById('userTableBody');
+
+        userTableBody.innerHTML = users.map(user => {
+            const roles = user.roles.map(role => role.name).join(', ');
+
+            return `
+            <tr>
+                <td>${user.id}</td>
+                <td>${user.name}</td>
+                <td>${user.lastName}</td>
+                <td>${user.email}</td>
+                <td>${roles}</td>
+                <td><button type="button" class="btn btn-warning" onclick="editUser(${user.id})">Изменить</button></td>
+               <td><button type="button" class="btn btn-danger" onclick="deleteUser(${user.id})">Удалить</button></td>
+            </tr>
+        `;
+        }).join('');
+    }
+    // Получение всех пользователей при загрузке страницы
+    window.onload = function () {
+        fetch('/api/admin/user', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Network response was not ok: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(users => displayUsers(users))
+            .catch(error => {
+                const userTableBody = document.getElementById('userTableBody');
+                userTableBody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center text-danger">Error: ${error.message}</td>
+            </tr>
+        `;
+                console.error('There was a problem with the fetch operation:', error);
+            });
+    };
+    function deleteUser(userId) {
+        fetch(`/api/admin/delete/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.text();
+            })
+            .then(() => {
+                document.getElementById('responseMessage').textContent = 'User deleted';
+                // Повторная загрузка списка пользователей после удаления
+                window.onload();
+            })
+            .catch(error => {
+                document.getElementById('responseMessage').textContent = 'Error deleting user';
+                console.error('There was a problem with the fetch operation:', error);
+            });
+    }
+    // Функция для открытия модального окна и заполнения формы данными пользователя
+    function editUser(userId) {
+        fetch(`/api/admin/read/${userId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Network response was not ok: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(user => {
+                // Заполнение формы текущими данными пользователя
+                document.getElementById('updateUserId').value = user.id;
+                document.getElementById('updateUserName').value = user.name;
+                document.getElementById('updateUserLastName').value = user.lastName;
+                document.getElementById('updateUserEmail').value = user.email;
+                document.getElementById('updateUserPassword').value = user.password;
+
+                // Заполнение ролей
+                document.getElementById('roleUser').checked = user.roles.includes('user');
+                document.getElementById('roleAdmin').checked = user.roles.includes('admin');
+
+                // Открытие модального окна
+                const updateUserModal = new bootstrap.Modal(document.getElementById('updateUserModal'));
+                updateUserModal.show();
+            })
+            .catch(error => {
+                console.error('There was a problem with the fetch operation:', error);
+            });
+    }
+    // Обработчик формы для обновления пользователя
+    document.getElementById('updateUserForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        const userId = document.getElementById('updateUserId').value;
+
+        const formData = {
+            id: userId,
+            name: document.getElementById('updateUserName').value,
+            lastName: document.getElementById('updateUserLastName').value,
+            email: document.getElementById('updateUserEmail').value,
+            password: document.getElementById('updateUserPassword').value,
+            roles: new Set()
+        };
+
+        // Получение выбранных ролей
+        if (document.getElementById('roleUser').checked) {
+            formData.roles.add('user');
+        }
+        if (document.getElementById('roleAdmin').checked) {
+            formData.roles.add('admin');
+        }
+
+        fetch(`/api/admin/upDate/${userId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ...formData,
+                roles: Array.from(formData.roles) // Преобразование Set в Array для передачи JSON
+            })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.text();
+            })
+            .then(() => {
+                document.getElementById('responseMessage').textContent = 'User updated';
+                const updateUserModal = bootstrap.Modal.getInstance(document.getElementById('updateUserModal'));
+                updateUserModal.hide();
+                // Повторная загрузка списка пользователей после обновления
+                window.onload();
+            })
+            .catch(error => {
+                document.getElementById('responseMessage').textContent = 'Error updating user';
+                console.error('There was a problem with the fetch operation:', error);
+            });
+    });
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
